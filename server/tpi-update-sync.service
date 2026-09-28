@@ -1,0 +1,41 @@
+[Unit]
+Description=tutor_pi 更新元数据同步（从上游 GitHub release 拉取 latest.yml / latest.json）
+Documentation=file:///srv/tpi-update/README-SYNC.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# 由 install-sync.sh 替换成实际部署用户
+User=__RUN_USER__
+Group=__RUN_USER__
+
+ExecStart=/usr/bin/python3 /usr/local/bin/tpi-update-sync.py
+
+# ---- 配置 ----
+Environment=TPI_SYNC_DEST=/srv/tpi-update/update
+Environment=TPI_SYNC_HISTORY_KEEP=5
+Environment=TPI_SYNC_ASSET_TIMEOUT=20
+# 第二个上游示例（GitHub 或 R2 或 Gist 都行，按序回退）：
+# Environment=TPI_SYNC_SOURCES=https://github.com/wanshushan/tpi-release/releases/latest/download,https://dl2.wanshushan.top/meta
+
+# ---- 加固：除 /srv/tpi-update 之外整个文件系统只读 ----
+ProtectSystem=strict
+ReadWritePaths=/srv/tpi-update
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+NoNewPrivileges=true
+
+# 单次最多跑 3 分钟；timer 每分钟触发一次，靠脚本内的 flock 保证不重叠
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

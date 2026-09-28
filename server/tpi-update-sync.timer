@@ -1,0 +1,15 @@
+[Unit]
+Description=每分钟同步一次 tutor_pi 更新元数据
+
+[Timer]
+# 开机 30 秒后先跑一次，之后每分钟一次
+OnBootSec=30s
+OnCalendar=minutely
+AccuracySec=10s
+Unit=tpi-update-sync.service
+
+# 服务器重启期间错过的触发不补跑（元数据没有时效性要求）
+Persistent=false
+
+[Install]
+WantedBy=timers.target

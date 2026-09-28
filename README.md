@@ -1,2 +1,3 @@
 # tpi-release
-tpi仓库
+
+tpi公开资产仓库
