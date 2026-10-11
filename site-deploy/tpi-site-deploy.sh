@@ -30,6 +30,12 @@ MODE="${TPI_SITE_MODE:-pull}"
 NODE_IMAGE="${TPI_SITE_NODE_IMAGE:-node:22-alpine}"
 STATE_FILE="${TPI_SITE_STATE:-/srv/tpi-site/.deploy-state}"
 KEEP_PREV="${TPI_SITE_KEEP_PREV:-1}"
+# 回滚备份放哪。默认是 ${WEB_ROOT}.prev —— 但那个位置在网站目录的【父目录】下，
+# 而 systemd 的 ReadWritePaths 只放行网站目录本身，所以父目录是只读的，
+# 在那里 mkdir/cp 会以「只读文件系统」失败。
+# 因此 1Panel 场景下必须显式设 TPI_SITE_PREV_DIR=/srv/tpi-site/www.prev
+# （放在部署工作目录里，也更干净：1Panel 的文件列表不会多出一个 index.prev）。
+PREV_DIR="${TPI_SITE_PREV_DIR:-${WEB_ROOT}.prev}"
 LOCK_FILE="${TPI_SITE_LOCK:-/srv/tpi-site/.deploy.lock}"
 
 DRY_RUN=0
@@ -54,7 +60,7 @@ while [ $# -gt 0 ]; do
 			sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
 			echo
 			echo "选项：--dry-run  --force（忽略 commit 未变）  -v"
-			echo "环境变量：TPI_SITE_{REPO,BRANCH,SRC_DIR,WEB_ROOT,SUBDIR,DIST_SUBDIR,MODE,NODE_IMAGE,STATE,KEEP_PREV,LOCK}"
+			echo "环境变量：TPI_SITE_{REPO,BRANCH,SRC_DIR,WEB_ROOT,PREV_DIR,SUBDIR,DIST_SUBDIR,MODE,NODE_IMAGE,STATE,KEEP_PREV,LOCK}"
 			exit 0
 			;;
 		*) die "未知参数：$1" ;;
@@ -176,15 +182,20 @@ fi
 mkdir -p "$WEB_ROOT"
 
 if [ "$KEEP_PREV" = 1 ] && [ -n "$(ls -A "$WEB_ROOT" 2>/dev/null || true)" ]; then
-	rm -rf "${WEB_ROOT}.prev"
-	cp -a "$WEB_ROOT" "${WEB_ROOT}.prev"
-	info "已保留上一版到 ${WEB_ROOT}.prev"
+	rm -rf "$PREV_DIR"
+	mkdir -p "$(dirname "$PREV_DIR")"
+	cp -a "$WEB_ROOT" "$PREV_DIR"
+	info "已保留上一版到 ${PREV_DIR}"
 fi
 
 # --delay-updates：先写临时名、最后统一改名 —— 每个文件是原子替换，不会出现半个文件
+# --delete：清掉线上已不存在的陈旧文件。两条 exclude 是不能被它删掉的共用文件：
+#   404.html     1Panel 生成的错误页，不是我们的产物（少这一条，每次部署都会删掉它）
+#   .well-known  约定目录（将来若直接在 OpenResty 上签证书会用到）
 rsync -a --delete --delay-updates \
+	--exclude '404.html' \
 	--exclude '.well-known' \
-	"$DIST_DIR/" "$WEB_ROOT/" || die "rsync 失败（线上目录可能只更新了一部分，用 ${WEB_ROOT}.prev 回滚）"
+	"$DIST_DIR/" "$WEB_ROOT/" || die "rsync 失败（线上目录可能只更新了一部分，用 ${PREV_DIR} 回滚）"
 
 # ── 6. 记录状态 ───────────────────────────────────────────────
 {

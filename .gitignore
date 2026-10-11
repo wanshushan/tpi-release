@@ -1,0 +1,6 @@
+# 本地测试台的工作目录（update-sync/test.py 会建）
+update-sync/.test-tmp/
+site-deploy/.test-tmp/
+
+# 手工打包产物（tpi-site/scripts/publish.mjs 会生成）
+dist.zip

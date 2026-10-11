@@ -17,3 +17,6 @@ tpi-site-dist/** -text
 *.service text eol=lf
 *.timer text eol=lf
 *.yml text eol=lf
+
+# 文档同样按 LF 存档（会被 install.sh 拷到服务器上 cat）
+*.md text eol=lf

@@ -13,19 +13,7 @@ import subprocess
 import sys
 import threading
 
-def _find_repo_root(start):
-    """向上找带 package.json 的目录 —— 这样本文件放在 scripts/ 还是 scripts/server/ 都不会算错根目录"""
-    d = os.path.abspath(start)
-    while True:
-        if os.path.isfile(os.path.join(d, "package.json")):
-            return d
-        parent = os.path.dirname(d)
-        if parent == d:
-            return os.path.abspath(start)
-        d = parent
-
-
-ROOT = _find_repo_root(os.path.dirname(__file__))
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 for _s in (sys.stdout, sys.stderr):
     try:
@@ -33,8 +21,12 @@ for _s in (sys.stdout, sys.stderr):
     except Exception:  # noqa: BLE001
         pass
 
-SYNC = os.path.join(ROOT, "scripts", "server", "tpi-update-sync.py")
-BASE = os.path.join(ROOT, "tmp", "_synctest")
+# 被测脚本就在本文件旁边；工作目录也用本目录下的 .test-tmp
+# （以前这里是 os.path.join(ROOT, "scripts", "server", ...) —— 那是这些文件还住在
+#  Tutor_pi 仓库 scripts/server/ 时的路径，搬过来之后测试就一直是坏的）
+SYNC = os.path.join(HERE, "tpi-update-sync.py")
+BASE = os.path.join(HERE, ".test-tmp")
+ROOT = HERE
 UP = os.path.join(BASE, "upstream")
 DEST = os.path.join(BASE, "dest")
 PORT = 18877
@@ -115,7 +107,19 @@ def run_sync(label, extra_env=None, args=None):
         env.update(extra_env)
     cmd = [sys.executable, SYNC, "-v"] + (args or [])
     print(f"\n--- {label} ---")
-    r = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=ROOT, timeout=180)
+    # encoding 必须显式指定：脚本自己设了 PYTHONIOENCODING/PYTHONUTF8 输出 UTF-8，
+    # 而 text=True 不指定时用本机 locale 解码（Windows 上是 GBK）→ 解码失败被抛在
+    # 读取线程里，外层只看到 r.stdout is None。Ubuntu（UTF-8 locale）上碰不到。
+    r = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        cwd=ROOT,
+        timeout=180,
+    )
     for line in r.stdout.strip().splitlines():
         print("   |", line)
     if r.stderr.strip():

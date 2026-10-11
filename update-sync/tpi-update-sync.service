@@ -1,13 +1,13 @@
 [Unit]
 Description=tutor_pi 更新元数据同步（从上游 GitHub release 拉取 latest.yml / latest.json）
-Documentation=file:///srv/tpi-update/README-SYNC.md
+Documentation=file:///srv/tpi-update/README.md
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 
-# 由 install-sync.sh 替换成实际部署用户
+# 由 install.sh 替换成实际部署用户
 User=__RUN_USER__
 Group=__RUN_USER__
 
@@ -34,7 +34,11 @@ RestrictNamespaces=true
 LockPersonality=true
 NoNewPrivileges=true
 
-# 单次最多跑 3 分钟；timer 每分钟触发一次，靠脚本内的 flock 保证不重叠
+# 单次最多跑 3 分钟。上游 GitHub 很慢/不通时单次会卡满上限（实测约 5 次里通 1 次）。
+# 脚本内的网络请求和资产预检都带超时，失败只是【保持现有文件】，不影响线上。
+#
+# 注意【调度器不是 systemd】：1Panel 计划任务跑 /usr/local/bin/tpi-release-sync.sh，
+# 那个脚本再 systemctl start 本单元，只借这里的只读沙箱。调度权 100% 在 1Panel。
 TimeoutStartSec=180
 
 [Install]

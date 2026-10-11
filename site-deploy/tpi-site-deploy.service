@@ -1,0 +1,51 @@
+[Unit]
+Description=tpi 简介页部署（从 GitHub 拉取 tpi-site-dist 发布到网站目录）
+Documentation=file:///srv/tpi-site/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# 由 install.sh 替换成实际部署用户
+User=__RUN_USER__
+Group=__RUN_USER__
+
+ExecStart=/usr/local/bin/tpi-site-deploy.sh
+
+# ---- 配置（全部由 install.sh 按实际目标写入；这里是对应默认值）----
+Environment=TPI_SITE_MODE=pull
+Environment=TPI_SITE_REPO=https://github.com/wanshushan/tpi-release.git
+Environment=TPI_SITE_SRC_DIR=/srv/tpi-site/src
+Environment=TPI_SITE_WEB_ROOT=/srv/tpi-site/www
+# 回滚备份必须落在可写区内：ReadWritePaths 只放行 /srv/tpi-site 与网站目录【本身】，
+# 网站目录的父目录是只读的 → 不能用部署脚本默认的 ${WEB_ROOT}.prev（会报"只读文件系统"）
+Environment=TPI_SITE_PREV_DIR=/srv/tpi-site/www.prev
+# 想让服务器自己构建就改成 build（会引入"仓库代码 → 服务器执行"这条路径，见 docs/架构.md）
+# Environment=TPI_SITE_MODE=build
+
+# ---- 只读沙箱 ----
+# ProtectSystem=strict 把整个文件系统变只读，只有 ReadWritePaths 里的目录可写。
+# 这是"结构性安全"：部署脚本会从网络拉东西，但它永远写不到
+# /srv/tpi-update（客户端正在读的元数据）里去 —— 哪怕它被喂了恶意仓库。
+#
+# 注意【调度器不是 systemd】：1Panel 计划任务跑 /usr/local/bin/tpi-site-sync.sh，
+# 那个脚本再 systemctl start 本单元，只借这里的沙箱。调度权 100% 在 1Panel。
+ProtectSystem=strict
+ReadWritePaths=/srv/tpi-site
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+NoNewPrivileges=true
+
+# 单次最多 5 分钟（首次 clone 实测约 73 秒）；1Panel 任务每 5 分钟触发，脚本内 flock 防重叠
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
