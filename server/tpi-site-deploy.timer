@@ -1,0 +1,15 @@
+[Unit]
+Description=每 5 分钟检查一次 tpi 简介页有没有更新
+
+[Timer]
+# 开机 2 分钟后先跑一次，之后每 5 分钟一次
+OnBootSec=2min
+OnCalendar=*:0/5
+AccuracySec=30s
+Unit=tpi-site-deploy.service
+
+# 服务器重启期间错过的触发不补跑（脚本本身会在下次触发时对齐到最新 commit）
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,25 @@
+/* 由 scripts/build-fonts.mjs 生成 —— 请勿手改；改文案后重跑 `npm run fonts` */
+
+@font-face {
+	font-family: 'Noto Sans SC';
+	font-style: normal;
+	font-weight: 900;
+	font-display: swap;
+	src: url('/fonts/notosanssc-900.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Jost';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('/fonts/jost-700.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Jost';
+	font-style: normal;
+	font-weight: 900;
+	font-display: swap;
+	src: url('/fonts/jost-900.woff2') format('woff2');
+}

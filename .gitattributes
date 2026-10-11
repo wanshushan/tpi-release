@@ -1,0 +1,19 @@
+# 构建产物按二进制处理。
+# 不写这几行的话，Windows 上的 core.autocrlf=true 会把 LF 改成 CRLF，
+# 而 woff2 / ico / exe 里的字节会被改坏 —— 页面字体直接坏掉、更新包 sha512 对不上。
+tpi-site-dist/** -text
+*.woff2 -text
+*.woff -text
+*.ttf -text
+*.otf -text
+*.ico -text
+*.exe -text
+*.zip -text
+*.blockmap -text
+
+# 脚本与配置统一按 LF 存档（服务器是 Linux）
+*.sh text eol=lf
+*.py text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+*.yml text eol=lf

@@ -1,0 +1,39 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# environment variables
+.env
+.env.production
+
+# macOS-specific files
+.DS_Store
+
+# jetbrains setting folder
+.idea/
+
+# 字体子集化的临时下载目录
+.fontsrc/
+
+# 本地起服务时的日志
+*.log
+
+# 部署包（本地产物，不入库）
+dist.zip
+
+# 发布到仓库的预构建产物
+../tpi-site-dist
+
+# build 模式在容器内跑 npm 时用的缓存目录
+.npm-cache/

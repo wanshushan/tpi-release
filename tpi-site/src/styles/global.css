@@ -1,0 +1,61 @@
+/* ─────────────────────────────────────────────────────────────
+   Tutor π · 智导 —— 单页简介
+   设计系统：包豪斯（几何原语 + 三原色 + 纸白 + 无衬线黑体）
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+	/* 纸白与墨黑：包豪斯海报的基底 */
+	--paper: #f2efe8;
+	--ink: #0d0d0d;
+
+	/* 三原色。蓝取自产品 UI 实测值 rgb(37,99,235)，另两色按同族明度/彩度配平 */
+	--red: #e23a2e;
+	--yellow: #f0be1e;
+	--blue: #2563eb;
+
+	--rule: 2px;
+	--gut: clamp(20px, 3.6vw, 56px);
+
+	--font-cjk: 'Noto Sans SC', 'PingFang SC', 'HarmonyOS Sans SC', 'Source Han Sans SC',
+		'Microsoft YaHei', sans-serif;
+	--font-latin: 'Jost', 'Noto Sans SC', 'PingFang SC', sans-serif;
+
+	--ease: cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body,
+h1,
+p {
+	margin: 0;
+}
+
+body {
+	min-height: 100svh;
+	background: var(--paper);
+	color: var(--ink);
+	font-family: var(--font-cjk);
+	font-weight: 900;
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+	overflow-x: hidden;
+}
+
+::selection {
+	background: var(--yellow);
+	color: var(--ink);
+}
+
+:focus-visible {
+	outline: var(--rule) solid var(--blue);
+	outline-offset: 4px;
+}

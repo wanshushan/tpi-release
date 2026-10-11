@@ -1,0 +1,322 @@
+---
+import '../styles/fonts.css';
+import '../styles/global.css';
+
+const SLOGAN = ['辩论求真', '因材施教'];
+const RELEASES = 'https://github.com/wanshushan/tpi-release/releases/latest';
+---
+
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Tutor π · 智导</title>
+		<meta name="description" content="辩论求真，因材施教。" />
+		<meta name="theme-color" content="#f2efe8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+	</head>
+
+	<body>
+		<main class="poster">
+			<!-- 几何原语与口号同处一个盒子，两者的相对位置在任何视口下都恒定 -->
+			<div class="stage">
+				<h1 class="slogan">
+					{
+						SLOGAN.map((line) => (
+							<span class="line">
+								<span>{line}</span>
+							</span>
+						))
+					}
+				</h1>
+
+				<!--
+					三角闭环 = 生成 → 交叉质疑 → 裁决 → 回到生成。
+					细线 + 三色节点 + 一段循环流动的高亮，既是包豪斯的几何构造，
+					也是产品真正的核心机制（辩论式交叉验证），而不是装饰性图形。
+				-->
+				<svg class="mark" viewBox="0 0 112 100" aria-hidden="true">
+					<path class="mark-edge" pathLength="100" d="M56 12 L100 82 L12 82 Z" />
+					<path class="mark-flow" pathLength="100" d="M56 12 L100 82 L12 82 Z" />
+					<circle class="mark-node node-red" cx="56" cy="12" r="9" />
+					<circle class="mark-node node-blue" cx="100" cy="82" r="9" />
+					<circle class="mark-node node-yellow" cx="12" cy="82" r="9" />
+				</svg>			</div>
+
+			<footer class="rail">
+				<p class="brand">tutor_π</p>
+
+				<a class="ver" id="ver" href={RELEASES} rel="noopener">
+					<span class="ver-num" id="ver-num">v—</span>
+					<span class="ver-arrow" aria-hidden="true">↓</span>
+					<span class="sr-only">下载最新版本</span>
+				</a>
+			</footer>
+		</main>
+
+		<script>
+			// 版本号与下载地址同源取自分发服务的闸门文件：页面永远跟着最新版本走。
+			// 拿不到就退回 GitHub 发布页，不显示假版本号。
+			const link = document.getElementById('ver');
+			const num = document.getElementById('ver-num');
+			if (link && num) {
+				fetch('/update/latest.json', { cache: 'no-store' })
+					.then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+					.then((meta) => {
+						const art = meta?.artifacts?.['desktop-nsis'];
+						if (!meta?.version) throw new Error('no version');
+						num.textContent = `v${meta.version}`;
+						link.href = art?.mirrors?.[0] || meta.releasePage || link.href;
+						link.dataset.state = 'ok';
+					})
+					.catch(() => {
+						link.dataset.state = 'na';
+						link.title = '元数据不可用，前往 GitHub 发布页';
+					});
+			}
+		</script>
+
+		<style>
+			.poster {
+				position: relative;
+				min-height: 100svh;
+				display: grid;
+				grid-template-rows: 1fr auto;
+				row-gap: clamp(20px, 5vh, 56px);
+				padding: var(--gut);
+				overflow: hidden; /* 让几何体可以出血 */
+			}
+
+			.stage {
+				position: relative;
+				align-self: center;
+				min-width: 0;
+				display: flex;
+				flex-direction: column;
+				align-items: flex-start;
+			}
+
+			/* ── 三角闭环：生成 → 交叉质疑 → 裁决 ────────────────
+			   默认叠在口号上方（竖屏、方屏、窄屏的安全构图）；
+			   只有「够宽且够扁」（≥16:9）时才挂到口号首行右侧。 */
+			.mark {
+				order: -1; /* 视觉上在口号之前，但 DOM 里 h1 仍排第一（屏读顺序） */
+				width: clamp(84px, 11vw, 190px);
+				height: auto;
+				margin-bottom: clamp(18px, 3.6vh, 44px);
+				overflow: visible;
+			}
+
+			.mark-edge,
+			.mark-flow {
+				fill: none;
+				stroke-width: 2.8;
+				stroke-linejoin: round;
+				stroke-linecap: round;
+			}
+
+			.mark-edge {
+				stroke: var(--ink);
+				/* 入场时把三条边「画」出来；reduced-motion 下直接是画好的状态 */
+				stroke-dasharray: 100;
+				stroke-dashoffset: 0;
+				animation: draw 1.1s var(--ease) 0.05s backwards;
+			}
+
+			.mark-flow {
+				stroke: var(--blue);
+				stroke-dasharray: 15 85; /* 一小段高亮沿闭环循环 = 一次协同跑通 */
+				stroke-dashoffset: 0;
+				animation: flow 3.6s linear 1.5s infinite;
+			}
+
+			.mark-node {
+				transform-box: fill-box;
+				transform-origin: center;
+				animation: pop 0.5s var(--ease) backwards;
+			}
+
+			.node-red {
+				fill: var(--red);
+				animation-delay: 0.85s;
+			}
+
+			.node-blue {
+				fill: var(--blue);
+				animation-delay: 0.95s;
+			}
+
+			.node-yellow {
+				fill: var(--yellow);
+				animation-delay: 1.05s;
+			}
+
+			@media (min-width: 1000px) and (min-aspect-ratio: 16/9) {
+				.mark {
+					position: absolute;
+					top: 0;
+					right: 0;
+					margin-bottom: 0;
+				}
+			}
+
+			/* ── 口号 ───────────────────────────────────────── */
+			.slogan {
+				font-size: clamp(3.1rem, min(21vw, 31vh), 24rem);
+				line-height: 0.92;
+				letter-spacing: -0.03em;
+				font-weight: 900;
+				text-wrap: balance;
+			}
+
+			.slogan .line {
+				display: block;
+				overflow: hidden;
+				padding-bottom: 0.06em; /* 给汉字下缘留出裁剪余量 */
+			}
+
+			.slogan .line > span {
+				display: block;
+				animation: rise 0.86s var(--ease) backwards;
+			}
+
+			.slogan .line:nth-child(1) > span {
+				animation-delay: 0.3s;
+			}
+
+			.slogan .line:nth-child(2) > span {
+				animation-delay: 0.4s;
+			}
+
+			/* ── 底栏 ───────────────────────────────────────── */
+			.rail {
+				display: flex;
+				align-items: baseline;
+				justify-content: space-between;
+				gap: 16px;
+				border-top: var(--rule) solid var(--ink);
+				padding-top: clamp(10px, 1.6vh, 18px);
+				animation: fade 0.7s var(--ease) 0.62s backwards;
+			}
+
+			.brand {
+				font-family: var(--font-latin);
+				font-weight: 900;
+				font-size: clamp(1.05rem, 1.7vw, 1.5rem);
+				letter-spacing: -0.01em;
+			}
+
+			.ver {
+				display: inline-flex;
+				align-items: baseline;
+				gap: 0.34em;
+				font-family: var(--font-latin);
+				font-weight: 700;
+				font-size: clamp(0.95rem, 1.35vw, 1.2rem);
+				font-variant-numeric: tabular-nums;
+				color: inherit;
+				text-decoration: none;
+			}
+
+			.ver-num {
+				position: relative;
+			}
+
+			.ver-num::after {
+				content: '';
+				position: absolute;
+				left: 0;
+				right: 0;
+				bottom: -3px;
+				height: var(--rule);
+				background: var(--blue);
+				transform: scaleX(0);
+				transform-origin: left;
+				transition: transform 0.34s var(--ease);
+			}
+
+			.ver:hover .ver-num::after,
+			.ver:focus-visible .ver-num::after {
+				transform: scaleX(1);
+			}
+
+			.ver-arrow {
+				display: inline-block;
+				color: var(--blue);
+				transition: transform 0.34s var(--ease);
+			}
+
+			.ver:hover .ver-arrow,
+			.ver:focus-visible .ver-arrow {
+				transform: translateY(0.16em);
+			}
+
+			/* 元数据拿不到时不假装有版本号 */
+			.ver[data-state='na'] .ver-num {
+				opacity: 0.45;
+			}
+
+			.sr-only {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				overflow: hidden;
+				clip-path: inset(50%);
+				white-space: nowrap;
+			}
+
+			/* ── 动效 ───────────────────────────────────────── */
+			@keyframes draw {
+				from {
+					stroke-dashoffset: 100;
+				}
+			}
+
+			@keyframes flow {
+				from {
+					stroke-dashoffset: 100;
+				}
+				to {
+					stroke-dashoffset: 0;
+				}
+			}
+
+			@keyframes pop {
+				from {
+					opacity: 0;
+					transform: scale(0.2);
+				}
+			}
+
+			@keyframes rise {
+				from {
+					transform: translateY(112%);
+				}
+			}
+
+			@keyframes fade {
+				from {
+					opacity: 0;
+					transform: translateY(10px);
+				}
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				*,
+				*::before,
+				*::after {
+					animation: none !important;
+					transition: none !important;
+				}
+			}
+
+			/* 极矮的窗口不再强行撑满一屏，避免内容被压扁 */
+			@media (max-height: 520px) {
+				.poster {
+					min-height: 0;
+				}
+			}
+		</style>
+	</body>
+</html>

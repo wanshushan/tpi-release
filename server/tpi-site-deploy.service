@@ -1,0 +1,41 @@
+[Unit]
+Description=tpi 简介页部署（从 GitHub 拉取 tpi-site 并发布到 /srv/tpi-site/www）
+Documentation=file:///srv/tpi-site/README-SITE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# 由 install-site-deploy.sh 替换成实际部署用户
+User=__RUN_USER__
+Group=__RUN_USER__
+
+ExecStart=/usr/local/bin/tpi-site-deploy.sh
+
+# ---- 配置 ----
+Environment=TPI_SITE_MODE=pull
+Environment=TPI_SITE_WEB_ROOT=/srv/tpi-site/www
+Environment=TPI_SITE_SRC_DIR=/srv/tpi-site/src
+# 想让服务器自己构建（⚠️ 引入代码执行路径，见 README-SITE.md）就改成 build：
+#   Environment=TPI_SITE_MODE=build
+# 并把下面的加固段换成 README-SITE.md「build 模式」那一组
+
+# ---- 加固（pull 模式）：除 /srv/tpi-site 之外整个文件系统只读 ----
+ProtectSystem=strict
+ReadWritePaths=/srv/tpi-site
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+NoNewPrivileges=true
+
+# 单次最多 5 分钟（首次 clone 或 npm ci 会久一点）；timer 每 5 分钟触发，脚本内 flock 防重叠
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
