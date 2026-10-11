@@ -37,6 +37,9 @@ KEEP_PREV="${TPI_SITE_KEEP_PREV:-1}"
 # （放在部署工作目录里，也更干净：1Panel 的文件列表不会多出一个 index.prev）。
 PREV_DIR="${TPI_SITE_PREV_DIR:-${WEB_ROOT}.prev}"
 LOCK_FILE="${TPI_SITE_LOCK:-/srv/tpi-site/.deploy.lock}"
+# git 操作的单次超时。上游是 GitHub，而这台服务器到 GitHub 是【间歇性】可达的，
+# 没有这个上限时一次卡死要等 135 秒（已实测）。
+GIT_TIMEOUT="${TPI_SITE_GIT_TIMEOUT:-120}"
 
 DRY_RUN=0
 FORCE=0
@@ -60,7 +63,7 @@ while [ $# -gt 0 ]; do
 			sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
 			echo
 			echo "选项：--dry-run  --force（忽略 commit 未变）  -v"
-			echo "环境变量：TPI_SITE_{REPO,BRANCH,SRC_DIR,WEB_ROOT,PREV_DIR,SUBDIR,DIST_SUBDIR,MODE,NODE_IMAGE,STATE,KEEP_PREV,LOCK}"
+			echo "环境变量：TPI_SITE_{REPO,BRANCH,SRC_DIR,WEB_ROOT,PREV_DIR,SUBDIR,DIST_SUBDIR,MODE,NODE_IMAGE,STATE,KEEP_PREV,LOCK,GIT_TIMEOUT}"
 			exit 0
 			;;
 		*) die "未知参数：$1" ;;
@@ -87,17 +90,30 @@ case "$MODE" in pull|build) ;; *) die "TPI_SITE_MODE 只能是 pull 或 build（
 info "=========== tpi-site-deploy 开始（mode=$MODE）==========="
 
 # ── 1. 检出代码 ───────────────────────────────────────────────
+# 上游是 GitHub，而这台服务器到它是【间歇性】可达的：好的时候 0.45 秒返回 200，
+# 坏的时候 TCP 连接卡 135 秒才失败。所以：
+#   · 所有 git 操作都套 timeout —— 不允许卡死整轮
+#   · 拉取失败 = 【正常降级】（exit 0，线上一个字节不变），下一轮自动重试
+#     这里不能 die：网络抖动不该在面板里显示成一片红叉，它和
+#     tpi-update-sync 的「上游无可用元数据 → 保持现有文件」是同一个哲学。
 if [ -d "$SRC_DIR/.git" ]; then
-	info "拉取上游 $BRANCH …"
+	info "拉取上游 $BRANCH …（超时 ${GIT_TIMEOUT}s）"
 	git -C "$SRC_DIR" remote set-url origin "$REPO_URL"
 	# 浅拉 + 硬重置：不产生 merge commit，也不会有本地改动导致 pull 失败
-	git -C "$SRC_DIR" fetch --quiet --depth 1 origin "$BRANCH" || die "git fetch 失败（网络/仓库地址？）"
+	if ! timeout "$GIT_TIMEOUT" git -C "$SRC_DIR" fetch --quiet --depth 1 origin "$BRANCH"; then
+		warn "上游不可达（git fetch 失败或超过 ${GIT_TIMEOUT}s）→ 跳过本轮，线上不变"
+		warn "    这是正常降级，1Panel 任务的下一轮会自动重试"
+		exit 0
+	fi
 	git -C "$SRC_DIR" reset --quiet --hard FETCH_HEAD
 	git -C "$SRC_DIR" clean -qfd -e node_modules -e .npm-cache
 else
-	info "首次 clone $REPO_URL …"
+	info "首次 clone $REPO_URL …（超时 ${GIT_TIMEOUT}s，实测顺利时约 73 秒）"
 	mkdir -p "$(dirname "$SRC_DIR")"
-	git clone --quiet --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR" || die "git clone 失败"
+	if ! timeout "$GIT_TIMEOUT" git clone --quiet --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR"; then
+		warn "首次 clone 失败或超时 → 跳过本轮，线上不变（下一轮会重试）"
+		exit 0
+	fi
 fi
 
 COMMIT="$(git -C "$SRC_DIR" rev-parse --short HEAD)"

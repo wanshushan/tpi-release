@@ -80,12 +80,13 @@ echo "   网站目录  : ${WEB_ROOT}"
 echo "   回滚备份  : ${PREV_DIR}"
 echo "   拉取源    : ${REPO:-（默认 github.com）}"
 echo "   部署模式  : ${MODE}"
+echo "   git 超时  : ${TPI_SITE_GIT_TIMEOUT:-120}s（拉不动就跳过本轮，不卡死）"
 echo "   调度      : $( [ "$WITH_TIMER" = 1 ] && echo 'systemd timer（每 5 分钟）' || echo '不装 timer —— 交给 1Panel 计划任务' )"
 echo
 
 # ---- 1) 依赖 ----
 missing=0
-for c in git rsync flock; do command -v "$c" >/dev/null || { echo "✗ 缺 $c"; missing=1; }; done
+for c in git rsync flock timeout; do command -v "$c" >/dev/null || { echo "✗ 缺 $c"; missing=1; }; done
 [ "$missing" = 1 ] && { echo "  装上： sudo apt-get install -y git rsync util-linux" >&2; exit 1; }
 if [ "$MODE" = build ] && ! command -v docker >/dev/null; then
 	echo "✗ build 模式需要 docker；不想装就把 TPI_SITE_MODE 改回 pull" >&2; exit 1

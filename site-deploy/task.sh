@@ -46,8 +46,15 @@ tail -n "$KEEP" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 # ── 面板里回显本次执行过程 ──────────────────────────────────────────
 printf '%s\n' "$OUT" | grep -vE '^$|^Started |^Finished ' || true
 
+# ── 最后一行摘要（一眼判断本次是哪种情况）──────────────────────────
 if [ "$rc" -ne 0 ]; then
 	printf '✗ 部署失败 rc=%s —— 完整日志 %s\n' "$rc" "$LOG"
+elif printf '%s' "$OUT" | grep -q '上游不可达'; then
+	printf '· 上游不可达，跳过本轮（正常降级，下一轮自动重试）\n'
+elif printf '%s' "$OUT" | grep -q '无需操作'; then
+	printf '· 无变化，跳过\n'
+elif printf '%s' "$OUT" | grep -q '发布完成'; then
+	printf '✓ 已发布\n'
 fi
 
 exit "$rc"
