@@ -94,6 +94,14 @@ fi
 
 # ---- 2) 目录 ----
 install -d -o "$RUN_USER" -g "$RUN_USER" -m 755 "$ROOT_DIR" "${ROOT_DIR}/src"
+# 仓库内容也必须归部署用户：git 既要「读」还要「写」.git（fetch / reset --hard）。
+# 只改顶层两个目录的属主会留下 git 2.35+ 的防呆报错：
+#   fatal: detected dubious ownership in repository at '/srv/tpi-site/src'
+# 而且这条报错不能靠 `git config --global safe.directory` 绕 —— 单元里有
+# ProtectHome=true，服务用户读不到自己的 ~/.gitconfig；写 .git 时也仍会 permission denied。
+if [ -d "${ROOT_DIR}/src" ] && [ -n "$(ls -A "${ROOT_DIR}/src" 2>/dev/null)" ]; then
+	chown -R "$RUN_USER:$RUN_USER" "${ROOT_DIR}/src"
+fi
 install -d -m 755 "$WEB_ROOT"          # 可能是 1Panel 建好的，不抢属主
 
 # ---- 3) 两个脚本 ----
@@ -118,6 +126,16 @@ sed -i -e "s|^ReadWritePaths=.*|ReadWritePaths=${RW_PATHS}|" "${UNIT_DIR}/${UNIT
 echo "-- 写进去的关键行 --"
 grep -nE '^User=|^Environment=TPI_SITE_(MODE|REPO|WEB_ROOT|PREV_DIR)=|^ReadWritePaths=' \
 	"${UNIT_DIR}/${UNIT}" | sed 's/^/   /'
+
+# 部署用户必须能写网站目录（rsync 要落盘）。这里不抢 1Panel 建好的属主，
+# 但要让问题当场暴露，而不是等下次定时任务以 "Permission denied" 失败。
+if ! sudo -u "$RUN_USER" test -w "$WEB_ROOT"; then
+	echo
+	echo "⚠️  部署用户 ${RUN_USER} 对网站目录没有写权限：$WEB_ROOT" >&2
+	echo "    rsync 会在发布那一步以 Permission denied 失败。执行下面这行修好：" >&2
+	echo "       sudo chown -R ${RUN_USER}:${RUN_USER} ${WEB_ROOT}" >&2
+	echo "   （1Panel 的 OpenResty 只需要读权限，改属主不影响它）" >&2
+fi
 
 # ---- 5) 服务器上离线可查的运维说明 ----
 if [ -f "${DOCS_DIR}/运维.md" ]; then
