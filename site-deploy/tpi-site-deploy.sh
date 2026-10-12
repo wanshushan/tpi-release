@@ -87,6 +87,21 @@ if [ "$MODE" = "build" ]; then
 fi
 case "$MODE" in pull|build) ;; *) die "TPI_SITE_MODE 只能是 pull 或 build（当前 $MODE）" ;; esac
 
+# ── 0.5 身份对齐：别让“运行用户 ≠ 仓库属主”把 git 卡死 ──────
+# 沙箱和运行用户本来都来自 systemd 单元（User= 部署用户）。但如果有人（或某个任务）
+# 直接 `sudo 本脚本`，就会以 root 跑 git，而仓库属于部署用户 → git 2.35+ 直接拒绘：
+#   fatal: detected dubious ownership in repository at '…'
+# 而且就算用 safe.directory 绕过读检查，还会把 state / lock / rsync 出的文件写成
+# root 属主，下一次以部署用户跑的自动任务又写不了 —— 属主混乱会连锁。
+# 所以：以 root 跑但仓库不属于 root 时，**自我降级重跑**（保持属主一致）。
+if [ "$(id -u)" -eq 0 ] && [ -d "$SRC_DIR" ]; then
+	SRC_OWNER="$(stat -c '%U' "$SRC_DIR" 2>/dev/null || echo root)"
+	if [ "$SRC_OWNER" != "root" ] && id "$SRC_OWNER" >/dev/null 2>&1; then
+		info "以 root 运行、但 $SRC_DIR 属于 $SRC_OWNER → 降级为 $SRC_OWNER 重跑"
+		exec sudo -u "$SRC_OWNER" -- "$0" "$@"
+	fi
+fi
+
 info "=========== tpi-site-deploy 开始（mode=$MODE）==========="
 
 # ── 1. 检出代码 ───────────────────────────────────────────────
