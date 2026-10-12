@@ -1,0 +1,65 @@
+---
+/**
+ * 底栏：左边品牌名，右边版本号（可点，落到安装包）。
+ *
+ * 版本号与下载地址同源取自分发服务的闸门文件 `/update/latest.json`，
+ * 页面永远跟着最新版本走；拿不到就退回 GitHub 发布页，不显示假版本号。
+ *
+ * 代理与同源的事见 astro.config.mjs 与 README —— 这里不要改成跨域地址。
+ */
+
+interface Props {
+	/** 左下角品牌名 */
+	brand?: string;
+	/** 元数据拿不到时的兜底跳转地址 */
+	fallback?: string;
+	/**
+	 * 左右两个角标的字号（任意 CSS 长度；写数字则当 rem）。
+	 * 不传就用 poster.css 里 `.brand` / `.ver` 的默认值（流式 clamp）。
+	 * 用行内 CSS 变量下传，所以这里可以写 `clamp()` 这种完整表达式。
+	 */
+	brandSize?: string | number;
+	versionSize?: string | number;
+}
+
+const {
+	brand = 'tutor_π',
+	fallback = 'https://github.com/wanshushan/tpi-release/releases/latest',
+	brandSize,
+	versionSize,
+} = Astro.props;
+
+const sizeVar = (name, value) =>
+	value == null ? '' : `${name}:${typeof value === 'number' ? `${value}rem` : value};`;
+const railStyle = sizeVar('--brand-size', brandSize) + sizeVar('--ver-size', versionSize);
+---
+
+<footer class="rail" style={railStyle || undefined}>
+	<p class="brand">{brand}</p>
+
+	<a class="ver" id="ver" href={fallback} rel="noopener">
+		<span class="ver-num" id="ver-num">v—</span>
+		<span class="ver-arrow" aria-hidden="true">↓</span>
+		<span class="sr-only">下载最新版本</span>
+	</a>
+</footer>
+
+<script>
+	const link = document.getElementById('ver');
+	const num = document.getElementById('ver-num');
+	if (link && num) {
+		fetch('/update/latest.json', { cache: 'no-store' })
+			.then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+			.then((meta) => {
+				const art = meta?.artifacts?.['desktop-nsis'];
+				if (!meta?.version) throw new Error('no version');
+				num.textContent = `v${meta.version}`;
+				link.href = art?.mirrors?.[0] || meta.releasePage || link.href;
+				link.dataset.state = 'ok';
+			})
+			.catch(() => {
+				link.dataset.state = 'na';
+				link.title = '元数据不可用，前往 GitHub 发布页';
+			});
+	}
+</script>

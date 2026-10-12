@@ -14,8 +14,17 @@
 		"astro": "astro"
 	},
 	"dependencies": {
-		"astro": "^7.3.8"
+		"@astrojs/mdx": "^8.0.3",
+		"@astrojs/react": "^7.0.1",
+		"astro": "^7.3.8",
+		"react": "^19.3.0",
+		"react-dom": "^19.3.0",
+		"vgpu": "^0.4.1"
 	},
 	"private": true,
-	"description": "tpi.wanshushan.top —— Tutor π · 智导 单页简介"
+	"description": "tpi.wanshushan.top —— Tutor π · 智导 单页简介",
+	"devDependencies": {
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0"
+	}
 }

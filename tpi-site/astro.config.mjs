@@ -1,5 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import mdx from '@astrojs/mdx';
+import react from '@astrojs/react';
 
 /**
  * 更新分发服务的地址。页面里的版本号与下载地址都来自它的 `/update/latest.json`，
@@ -19,6 +21,9 @@ const proxy = {
 // https://astro.build/config
 export default defineConfig({
 	site: UPDATE_ORIGIN,
+	// 首页内容由 src/content/index/index.mdx 渲染（见 content.config.ts）
+	// react 只为背景那一个客户端岛（components/islands/ShapeWaves.jsx）而存在
+	integrations: [mdx(), react()],
 	// 单页海报，CSS 很小：直接内联，省一次往返
 	build: { inlineStylesheets: 'always' },
 	vite: {

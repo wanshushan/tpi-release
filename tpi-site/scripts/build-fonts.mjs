@@ -19,7 +19,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -28,7 +28,7 @@ const CACHE = path.join(ROOT, '.fontsrc');
 const OUT_DIR = path.join(ROOT, 'public', 'fonts');
 const OUT_CSS = path.join(ROOT, 'src', 'styles', 'fonts.css');
 
-/** 参与字符扫描的目录：`.astro` 里去掉标签后剩下的就是页面文案 */
+/** 参与字符扫描的目录：`.astro` 是版面与组件，`.mdx` 是页面内容 */
 const TEXT_DIRS = ['src'];
 
 /** 固定补进来的字符：动态文本、符号、数字 */
@@ -52,16 +52,44 @@ const SUBSETS = [
 ];
 
 // ── 1. 收集「渲染出来的文案」里的码点 ─────────────────────────
-// frontmatter、<style>/<script>、注释（含 CSS 注释）里的中文不会显示在页面上，
-// 扫进去只会让字子集无谓变大。
-function visibleText(source) {
-	return source
-		.replace(/^---[\s\S]*?\n---/, '') // frontmatter
+// 两条来源缺一不可：
+// ① 字符串字面量 —— `brand="tutor_π"`、`lines={['辩论求真', '因材施教']}` 这类写在
+//    组件参数里的文案藏在标签内部，光把标签删掉是拿不到的；
+// ② 去标签后剩下的文本节点 —— .mdx 的 frontmatter（title / description 会渲染进
+//    <head>）与正文里的 Markdown 文字。
+// 注释、<style>/<script>、import/export 里的中文不会显示在页面上，先去掉。
+// 取向是**宁多勿少**：多收几个字符只是子集大几百字节，漏一个就是一个字掉到系统字体。
+function visibleText(source, { astro = false } = {}) {
+	// frontmatter：.astro 的是纯代码，一个字都不会显示（里面的文案由上一步的字面量
+	// 收集拿走）；.mdx 的会被渲染进 <head>（title / description），要留 —— 但 YAML
+	// 的 `#` 注释不会显示，先剔掉。
+	let s = source.replace(/^(\s*)---\r?\n([\s\S]*?)\r?\n---[^\n]*\n/, (_, _lead, body) =>
+		astro ? '' : `${body.replace(/^\s*#.*$/gm, '')}\n`,
+	);
+
+	s = s
+		.replace(/^\s*(import|export)\b[^\n]*$/gm, '')
 		.replace(/<script[\s\S]*?<\/script>/gi, '')
 		.replace(/<style[\s\S]*?<\/style>/gi, '')
-		.replace(/\/\*[\s\S]*?\*\//g, '')
+		// HTML 标签整体删掉：里面的 class="poster" / viewBox="0 0 112 100" /
+		// d="M56 12 L100 82 Z" 都一个字不会显示。
+		// JSX/组件标签（首字母大写）留着 —— 文案往往写在 props 里，
+		// 比如 <Slogan lines={['辩论求真', …]} />。
+		.replace(/<\/?[a-z][^>]*>/g, ' ')
+		// 注释必须在抠字面量**之前**去：注释里常常有 `color="#0d0d0d"`
+		// 这类示例，它一个字都不会显示，却会被字面量那一步收进子集。
 		.replace(/<!--[\s\S]*?-->/g, '')
-		.replace(/<[^>]+>/g, ''); // 只剩文本节点
+		.replace(/\{\/\*[\s\S]*?\*\/\}/g, '') // MDX 注释 {/* … */}
+		.replace(/\/\*[\s\S]*?\*\//g, '');
+
+	const literals = [];
+	s = s.replace(/(['"])(?:\\.|(?!\1)[^\\])*\1/g, (m) => {
+		literals.push(m.slice(1, -1));
+		return ' ';
+	});
+
+	// 剩下的就是文本节点
+	return literals.join('') + s.replace(/<[^>]*>/g, ' ');
 }
 
 async function collectText() {
@@ -69,10 +97,12 @@ async function collectText() {
 	for (const rel of TEXT_DIRS) {
 		const abs = path.join(ROOT, rel);
 		if (!existsSync(abs)) continue;
-		// 只要 .astro：样式表里的中文是注释、组件里的中文是代码，都不会显示在页面上
-		const files = (await readdir(abs, { recursive: true })).filter((f) => f.endsWith('.astro'));
+		const files = (await readdir(abs, { recursive: true })).filter(
+			(f) => f.endsWith('.astro') || f.endsWith('.mdx'),
+		);
 		for (const f of files) {
-			for (const ch of visibleText(await readFile(path.join(abs, f), 'utf8'))) chars.add(ch);
+			const source = await readFile(path.join(abs, f), 'utf8');
+			for (const ch of visibleText(source, { astro: f.endsWith('.astro') })) chars.add(ch);
 		}
 	}
 	return [...chars].filter((c) => c.codePointAt(0) > 31).join('');
@@ -166,7 +196,12 @@ async function main() {
 	console.log(`\n写入 ${path.relative(ROOT, OUT_CSS)}`);
 }
 
-main().catch((err) => {
-	console.error(`\n字体子集化失败：${err.message}`);
-	process.exit(1);
-});
+export { collectText, visibleText };
+
+// 直接 `node scripts/build-fonts.mjs` 才跑；被 import 时可单独拿两个函数做调试
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main().catch((err) => {
+		console.error(`\n字体子集化失败：${err.message}`);
+		process.exit(1);
+	});
+}

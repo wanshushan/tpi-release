@@ -1,0 +1,118 @@
+---
+# ↓ 首页 <head> 用的两个字段（标签页标题 / 搜索与分享摘要）
+title: Tutor π · 智导
+description: 辩论求真，因材施教。
+---
+
+{/*
+  ────────────────── 首页正文 = 整张海报 ──────────────────
+  下面用到的组件都在 src/components/ 里：
+
+    <Poster>       版面外壳（主区 + 底栏两层网格）
+    <Stage>        主区：整屏里垂直居中的那一大块
+    <Slogan>       口号，lines 一行一条，几行都行
+    <Mark>         三角闭环标记：生成 → 交叉质疑 → 裁决
+    <VersionRail>  底栏：左边品牌名，右边版本号（JS 从 /update/latest.json 取）
+
+  想加内容：在 <Stage> 里接着往下写 Markdown 或组件就行。
+  改完先 `npm run fonts`（字体按页面上用到的字符切子集，不动文字可跳），
+  再 `npm run build` 看一眼、`npm run publish` 同步产物。
+*/}
+
+import Poster from '../../components/Poster.astro';
+import Stage from '../../components/Stage.astro';
+import Slogan from '../../components/Slogan.astro';
+import Mark from '../../components/Mark.astro';
+import VersionRail from '../../components/VersionRail.astro';
+import WaveBackground from '../../components/islands/WaveBackground.jsx';
+
+<Poster>
+	{/*
+	    背景：ShapeWaves（WebGPU 点阵波场，来自 React Bits），外面套了一层我们自己的
+	    WaveBackground —— 只在“镂空的字怎么画”上多给一个入口，其余参数全透传。
+	    `client:only` 是必须的 —— 组件一跑就在摸 navigator.gpu，放到构建期会直接报错。
+	    配色是 reactbits 官方 demo 的那一套（白底 + #5b95f3 点阵 + 场里镂空字），
+	    除了两处：`glow` 关 0、`fontFamily/fontWeight` 换成站内字体（见下）。
+	    没 WebGPU 的浏览器只会看到白底（组件自动降级，不报错、不留空）。
+
+	    参数取舍（改之前先读）：
+	    · `text` 两种写法（这就是“填入一个组件 + 保留文本”）：
+	        text="  TPi"                        纯文本：组件原本的单行文本镂空，行为不变
+	        text={{ component: 'tutorPi' }}      “填入组件”：查 wordmarks.js 里的绘制函数，
+	                                            能画单行文本画不出来的排版（T 里嵌竖排 utor）
+	      两种都可带调参（可序列化），字模的旋钮共四个：
+	        text={{ component: 'tutorPi', stackSize: 0.38, stackX: 0.83, stackTop: 0.28, stackRotate: 90 }}
+	      stackSize = 竖排字号（× 主字 em，决定小写字母高）
+	      stackX    = 竖排列在 T 宽度内的水平位置（竖笔右缘 ≈ 0.65，凹口中线 ≈ 0.83）
+	      stackTop  = 竖排列顶端距 T 顶部（× 大写高，0.28 ≈ 刚好让过横梁）
+	      stackRotate = 整行水平旋转角度（90 = 顺时针、首字母在上）
+	      名字拼错不会让背景消失 —— 退回文本模式，并在控制台点名。
+	      字形用的是 canvas 文字，fontFamily/fontWeight 必须指向站内已加载的字体；
+	      ⚠️ 站内 Jost 只切了 700/900 两档，所以 fontWeight 写 400 实际还是 700。
+	    · 常动：speed={1}，波场一直在演化。代价：这层是全屏逐像素 FBM 噪声，
+	      只要 speed>0，rAF 就不会停（组件只在标签页隐藏、prefers-reduced-motion 时自己停）。
+	      实测：reactbits 官方预览框 892×598（0.53M 像素），我们是整屏出血
+	      （1080p = 2.07M，3.9×；2560×1440 = 3.69M，6.9×）—— “那边不卡”是因为那边框小。
+	      想省电：paused={true} 改成“静止场 + 鼠标涟漪”，闲置时 GPU 占用归零。
+	    · glow={0}：官方 demo 是 0.35（scene→target + 2 次 blur + composite 共 4 趟）。
+	      但 #5b95f3 的亮度约 0.56，低于着色器里的发光阈值 0.6 —— 也就是这些
+	      蓝色字形本来就几乎不产生光晕，关掉**视觉上没有区别**，却省掉 3 趟渲染。
+	    · vgpu 必须锁 0.4.x：0.5.0 的 createTexture 要求显式 kind，组件没写。
+	*/}
+	<div class="bg">
+		<WaveBackground
+			client:only="react"
+			text={{ component: 'tutorPi', stackSize: 0.28, stackX: 0.80, stackTop: 0.26, stackRotate: 90 }}
+			fontFamily='Jost, "Noto Sans SC", system-ui, sans-serif'
+			fontWeight={400}
+			textSize={0.8}
+			shapes="mixed"
+			cellSize={10}
+			dotSize={0.70}
+			color="#5b95f3"
+			hoverColor="#5b96f7"
+			backgroundColor="#ffffff"
+			speed={1}
+			scale={1.2}
+			contrast={1}
+			brightness={0.4}
+			flow={0}
+			direction={0}
+			fade={0.25}
+			interactive={true}
+			splashRadius={40}
+			splashStrength={0.4}
+			glow={0}
+			intro={true}
+			introDuration={1.6}
+			paused={false}
+		/>
+	</div>
+
+	<Stage>
+		{/* size 就是左下角标语的字号：任何 CSS 长度都行（写数字 = rem）。
+		    现在这个 clamp 是“标题尺度”那档（≈ 宽度 1/3）；想更大就写 "5rem" 这种固定值，
+		    但太大就会重新盖住背景里的镂空 TPi。 */}
+		<Slogan lines={['辩论求真', '因材施教']} size="clamp(2.2rem, min(9vw, 12.5vh), 5.5rem)" />
+	</Stage>
+
+	{/* 三角标记：已从主区里拿出来单独摆放 —— 它是 <Poster> 的直系子元素，
+	    所以 place 的四个角/居中都是相对**整页**的（不再受“宽屏自动挂到右侧”那条规则影响）。
+	      place : inline | top-left | top-right | bottom-left | bottom-right | center
+	      offset: 在 place 基础上微调，CSS 长度，先 X 后 Y（"5vw 17vh" = 右 5vw、底 17vh）
+	      size  : 数字 = 像素（图形不是字），也可以写任意 CSS 长度
+	      rotate: 顺时针角度（度，可负） */}
+	<Mark
+		place="bottom-right"
+		offset="5vw 17vh"
+		size="clamp(84px, 11vw, 190px)"
+		rotate={0}
+	/>
+
+	{/* versionSize 是右下角版本号的字号，同理。brandSize 控制左下角 tutor_π，
+	    不传就用 poster.css 里的默认值。 */}
+	<VersionRail
+		brand="tutor_π"
+		versionSize="clamp(0.95rem, 1.35vw, 1.2rem)"
+	/>
+</Poster>

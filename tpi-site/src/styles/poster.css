@@ -1,0 +1,278 @@
+/* ─────────────────────────────────────────────────────────────
+   Tutor π · 智导 —— 首页版式
+   ─────────────────────────────────────────────────────────────
+   为什么是「全局样式」而不是写在某个 .astro 的 <style> 里：
+   版面现在由 src/content/index/index.mdx 里的组件拼出来，组件分布在好几个
+   文件里 —— Astro 的 <style> 是**按组件作用域**的（会给元素加 data-astro-cid-*），
+   跨文件的子元素根本选不中。这里全是版式规则，放全局最省心。
+
+   版式约定（改之前先读）：
+   · .poster 是两行网格：.stage 吃掉剩余高度并垂直居中，.rail 贴底
+   · .stage 是 .mark 的定位上下文 —— 宽屏那条例外构图靠它成立
+   · .mark 用 order:-1 提到口号之前（DOM 里 h1 仍排第一，护住屏读顺序）
+   ───────────────────────────────────────────────────────────── */
+
+.poster {
+	position: relative;
+	min-height: 100svh;
+	display: grid;
+	grid-template-rows: 1fr auto;
+	row-gap: clamp(20px, 5vh, 56px);
+	padding: var(--gut);
+	overflow: hidden; /* 让几何体可以出血 */
+}
+
+.stage {
+	position: relative;
+	z-index: 1; /* 压在背景层之上 */
+	/* 靠下贴住底栏那条线，把画面中上部的镂空 TPi 让出来（参照 reactbits 首页的构图） */
+	align-self: end;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+/* ── 背景层：ShapeWaves（WebGPU 点阵波场）─────────────
+   绝对定位 → 不吃 .poster 的网格行（inset 直接铺满版面）。
+   z-index 写死： canvas 是不透明的，而 .rail 是静态流内元素，
+   不给它抬 z-index 就会被画到背景下面去。
+   pointer-events:none → 背景不能抢版本号链接的点击；组件的交互靠
+   window 上的 pointermove 监听，不受影响。
+   WebGPU 不可用时组件只回调 onError、canvas 保持 opacity:0，
+   底色由 .shape-waves 那个行内 backgroundColor（= --paper）兜着。 */
+.bg {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+/* ── 三角闭环：生成 → 交叉质疑 → 裁决 ────────────────
+   默认叠在口号上方（竖屏、方屏、窄屏的安全构图）；
+   只有「够宽且够扁」（≥16:9）时才挂到口号首行右侧。
+   宽度可由 Mark 的 size 覆盖（组件把 --mark-size 写在 svg 上）。 */
+.mark {
+	order: -1; /* 视觉上在口号之前，但 DOM 里 h1 仍排第一（屏读顺序） */
+	width: var(--mark-size, clamp(84px, 11vw, 190px));
+	height: auto;
+	margin-bottom: clamp(18px, 3.6vh, 44px);
+	overflow: visible;
+}
+
+/* 显式摆放时（place != inline）它是绝对定位的，不吃 flow 里的下外边距 */
+.mark:not([data-place='inline']) {
+	margin-bottom: 0;
+}
+
+.mark-edge,
+.mark-flow {
+	fill: none;
+	stroke-width: 2.8;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+.mark-edge {
+	stroke: var(--ink);
+	/* 入场时把三条边「画」出来；reduced-motion 下直接是画好的状态 */
+	stroke-dasharray: 100;
+	stroke-dashoffset: 0;
+	animation: draw 1.1s var(--ease) 0.05s backwards;
+}
+
+.mark-flow {
+	stroke: var(--blue);
+	stroke-dasharray: 15 85; /* 一小段高亮沿闭环循环 = 一次协同跑通 */
+	stroke-dashoffset: 0;
+	animation: flow 3.6s linear 1.5s infinite;
+}
+
+.mark-node {
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: pop 0.5s var(--ease) backwards;
+}
+
+.node-red {
+	fill: var(--red);
+	animation-delay: 0.85s;
+}
+
+.node-blue {
+	fill: var(--blue);
+	animation-delay: 0.95s;
+}
+
+.node-yellow {
+	fill: var(--yellow);
+	animation-delay: 1.05s;
+}
+
+/* 这条自动构图规则只给「跟着版面流」的标记用；显式 place 的标记由组件自己定位 */
+@media (min-width: 1000px) and (min-aspect-ratio: 16/9) {
+	.mark[data-place='inline'] {
+		position: absolute;
+		top: 0;
+		right: 0;
+		margin-bottom: 0;
+	}
+}
+
+/* ── 口号 ─────────────────────────────────────────
+   尺度参照 reactbits 首页那版：两行标题、约占宽度 1/3，不再撞满整屏 ——
+   背景里镂空的 TPi 才是主视觉，口号压在它下半部当标题。
+   字号默认值可被 Slogan 的 size 覆盖（组件把 --slogan-size 写在 h1 上）。 */
+.slogan {
+	font-size: var(--slogan-size, clamp(2.2rem, min(9vw, 12.5vh), 6.5rem));
+	line-height: 1.02;
+	letter-spacing: -0.02em;
+	font-weight: 900;
+	text-wrap: balance;
+}
+
+.slogan .line {
+	display: block;
+	overflow: hidden;
+	padding-bottom: 0.06em; /* 给汉字下缘留出裁剪余量 */
+}
+
+/* 每行的入场延迟由 Slogan.astro 写成行内 animation-delay（行数可变） */
+.slogan .line > span {
+	display: block;
+	animation: rise 0.86s var(--ease) backwards;
+}
+
+/* ── 底栏 ───────────────────────────────────────── */
+.rail {
+	position: relative;
+	z-index: 1; /* 压在背景层之上 */
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	border-top: var(--rule) solid var(--ink);
+	padding-top: clamp(10px, 1.6vh, 18px);
+	animation: fade 0.7s var(--ease) 0.62s backwards;
+}
+
+/* 字号默认值可以被 VersionRail 的 brandSize / versionSize 覆盖
+   （组件把 --brand-size / --ver-size 写在 .rail 上） */
+.brand {
+	font-family: var(--font-latin);
+	font-weight: 900;
+	font-size: var(--brand-size, clamp(1.05rem, 1.7vw, 1.5rem));
+	letter-spacing: -0.01em;
+}
+
+.ver {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.34em;
+	font-family: var(--font-latin);
+	font-weight: 700;
+	font-size: var(--ver-size, clamp(0.95rem, 1.35vw, 1.2rem));
+	font-variant-numeric: tabular-nums;
+	color: inherit;
+	text-decoration: none;
+}
+
+.ver-num {
+	position: relative;
+}
+
+.ver-num::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -3px;
+	height: var(--rule);
+	background: var(--blue);
+	transform: scaleX(0);
+	transform-origin: left;
+	transition: transform 0.34s var(--ease);
+}
+
+.ver:hover .ver-num::after,
+.ver:focus-visible .ver-num::after {
+	transform: scaleX(1);
+}
+
+.ver-arrow {
+	display: inline-block;
+	color: var(--blue);
+	transition: transform 0.34s var(--ease);
+}
+
+.ver:hover .ver-arrow,
+.ver:focus-visible .ver-arrow {
+	transform: translateY(0.16em);
+}
+
+/* 元数据拿不到时不假装有版本号 */
+.ver[data-state='na'] .ver-num {
+	opacity: 0.45;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* ── 动效 ───────────────────────────────────────── */
+@keyframes draw {
+	from {
+		stroke-dashoffset: 100;
+	}
+}
+
+@keyframes flow {
+	from {
+		stroke-dashoffset: 100;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+@keyframes pop {
+	from {
+		opacity: 0;
+		transform: scale(0.2);
+	}
+}
+
+@keyframes rise {
+	from {
+		transform: translateY(112%);
+	}
+}
+
+@keyframes fade {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+
+/* 极矮的窗口不再强行撑满一屏，避免内容被压扁 */
+@media (max-height: 520px) {
+	.poster {
+		min-height: 0;
+	}
+}

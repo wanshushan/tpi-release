@@ -1,0 +1,49 @@
+---
+/**
+ * 口号。一行一个数组元素，几行都行。
+ *
+ * 每行都包了一层 overflow:hidden，内层向上滑入 —— 所以换行只能靠 `lines` 数组，
+ * 写 <br /> 或行内换行都不会有那个效果。
+ */
+
+interface Props {
+	/** 一行一条，按顺序渲染 */
+	lines: string[];
+	/**
+	 * 字号：任意 CSS 长度（写数字则当 rem，也可以直接写 `clamp(...)`）。
+	 * 不传就用 poster.css 里 `.slogan` 的默认值。
+	 * ⚠️ 这是画面的主标题、也是唯一会跟背景镂空 TPi 抢位置的东西 —— 调大之前
+	 * 先在 1440×900 与 390×844 两个尺寸上看一眼。
+	 */
+	size?: string | number;
+	/**
+	 * 只给屏读/SEO 留一份、视觉上不显示。
+	 * 用在“口号已经被 ShapeWaves 镂空到场里”的时候 —— 画面上的字由 canvas 画，
+	 * h1 退成 sr-only，免得同一句口号在屏幕上出现两次。
+	 */
+	visuallyHidden?: boolean;
+}
+
+const { lines, size, visuallyHidden = false } = Astro.props;
+
+// 口号是整页唯一的主视觉，空了就当构建失败 —— 早点报错好过发一张空白海报出去
+if (!Array.isArray(lines) || lines.length === 0) {
+	throw new Error(
+		"<Slogan> 至少要有 1 行，例如：<Slogan lines={['辩论求真', '因材施教']} />",
+	);
+}
+---
+
+<h1
+	class:list={['slogan', visuallyHidden && 'sr-only']}
+	style={size == null ? undefined : `--slogan-size:${typeof size === 'number' ? `${size}rem` : size}`}
+>
+	{
+		lines.map((line, i) => (
+			<span class="line">
+				{/* 每行延迟 0.1s 递增，串成一句念下来的节奏 */}
+				<span style={`animation-delay:${(0.3 + i * 0.1).toFixed(1)}s`}>{line}</span>
+			</span>
+		))
+	}
+</h1>

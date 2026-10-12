@@ -183,7 +183,8 @@ if [ "$DRY_RUN" != 1 ]; then
 	SIZE="$(du -sh "$DIST_DIR" | cut -f1)"
 	info "产物校验通过：$FILES 个文件 / $SIZE"
 
-	# 体积失控守卫：单页站正常 ~40KB，超过 5MB 说明误把 node_modules 之类同步进来了
+	# 体积失控守卫：单页站正常 ~0.4MB（含背景那个 WebGPU 客户端岛），
+	# 超过 5MB 说明误把 node_modules 之类同步进来了
 	BYTES="$(du -sb "$DIST_DIR" | cut -f1)"
 	[ "$BYTES" -lt 5242880 ] || die "产物 $SIZE 明显异常（>5MB）→ 拒绝发布"
 fi

@@ -71,8 +71,16 @@ curl -sI https://tpi.wanshushan.top/ | head -1                   # 期望 200
 
 ### 改简介页
 
+**文案全部在 `tpi-site/src/content/index/index.mdx`** —— frontmatter 是标签页标题与摘要，
+正文就是整张海报的版面（背景 `<ShapeWaves>` + 标题 `<Slogan>` + 标记 `<Mark>` + 底栏 `<VersionRail>`）。
+改内容、改背景配色都只改这一个文件。
+
+> 版式上注意一件事：**背景里那个镂空的 `TPi` 才是主视觉**，所以口号是“普通标题尺度、靠左下”，
+> 不是以前的整屏巨字。改 `poster.css` 里 `.slogan` 的字号前先看 `tpi-site/README.md` 的「设计说明」。
+
 ```bash
 cd tpi-site
+npm run fonts            # 改了文字就先跑（字体按页面上用到的字符切子集）；没碰文字可跳过
 npm run publish          # build + 同步到 ../tpi-site-dist + 打 dist.zip
 cd ..
 git add -A && git commit -m "site: 改了什么" && git push
@@ -80,8 +88,14 @@ git add -A && git commit -m "site: 改了什么" && git push
 
 最多 5 分钟自动上线。想立刻上线 → 1Panel → 计划任务 → `tpi 简介页部署` → **执行**。
 
-> ⚠️ 改了页面**文案**要先 `npm run fonts` —— 字体是按页面实际用到的字符切子集的
-> （`.fontsrc/` 是源字体缓存，不用提交）。
+> ⚠️ `npm run fonts` 漏跑**不会报错**，只是新字会掉到系统字体（字形与基线不一致）。
+> 它需要 Python 3 + `pip install fonttools brotli`；`.fontsrc/` 是源字体缓存，不用提交。
+> 重切过字体后，建议顺手在 CF purge 一下 `https://tpi.wanshushan.top/fonts/*`
+> （`/fonts/*` 带 20 小时缓存且 URL 不带指纹）。
+
+> ⚠️ 首页背景是 WebGPU 客户端岛（React + `vgpu`），`vgpu` **必须锁在 0.4.x**：
+> 0.5.0 会在第一张纹理就报错、然后静默降级成一片纸白底层。细节见 `tpi-site/README.md` 的「背景」一节。
+> 产物也因此从 29 KB 变成 ~413 KB（8 个文件）；部署脚本的 5MB 体积守卫仍然适用。
 
 ### 发新版客户端
 

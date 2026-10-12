@@ -1,0 +1,77 @@
+---
+/**
+ * 三角闭环 = 生成 → 交叉质疑 → 裁决 → 回到生成。
+ *
+ * 细线 + 三色节点 + 一段循环流动的高亮，既是包豪斯的几何构造，
+ * 也是产品真正的核心机制（辩论式交叉验证），不是装饰性图形。
+ *
+ * 摆放由 props 控制（见下）。它既可以跟着版面流走，也可以脱离流、
+ * 绝对定位到「最近的定位祖先」的某个角落 —— 放在 <Poster> 直系就是相对**整页**。
+ * 注意 CSS 里那条「宽屏时自动挂到主区右上」的规则只对 place="inline" 生效。
+ */
+
+interface Props {
+	/**
+	 * 宽度：**数字 = 像素**（这是个图形，不是字，所以单位跟 poster.css 里的默认值一致）；
+	 * 也可以给任意 CSS 长度（如 "11vw"）。不给就用 poster.css 的默认 clamp(84px, 11vw, 190px)。
+	 */
+	size?: string | number;
+	/**
+	 * 'inline'（默认）跟着版面流走（此时它待在 <Stage> 里）；
+	 * 'top-left' / 'top-right' / 'bottom-left' / 'bottom-right' / 'center' 为绝对定位。
+	 */
+	place?: 'inline' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center';
+	/** 在 place 基础上的微调：CSS 长度，先 X 后 Y（如 "4vw 12vh"）。place='inline' 时忽略 */
+	offset?: string;
+	/** 顺时针旋转角度（度，可负） */
+	rotate?: number;
+}
+
+const { size, place = 'inline', offset, rotate } = Astro.props;
+
+// offset 拆成 X / Y 两个长度，分别落到对应的方位属性上。
+// 注意：只给一个值时只作用于 X，Y 缺省为 0 —— 用 ?? 而不是解构默认值，
+// 因为空串在解构里算是“有值”，会让 top:0;left: 这种空声明溜过去。
+const parts = String(offset ?? '')
+	.trim()
+	.split(/\s+/)
+	.filter(Boolean);
+const offX = parts[0] ?? '0';
+const offY = parts[1] ?? '0';
+
+const POSITION = {
+	'top-left': `top:${offY};left:${offX}`,
+	'top-right': `top:${offY};right:${offX}`,
+	'bottom-left': `bottom:${offY};left:${offX}`,
+	'bottom-right': `bottom:${offY};right:${offX}`,
+	center: 'top:50%;left:50%',
+};
+
+const transforms = [];
+if (place === 'center') transforms.push('translate(-50%, -50%)');
+if (rotate != null) transforms.push(`rotate(${rotate}deg)`);
+
+const markStyle = [
+	// 覆盖 poster.css 里的默认宽度
+	size == null ? '' : `--mark-size:${typeof size === 'number' ? `${size}px` : size}`,
+	place === 'inline' ? '' : 'position:absolute',
+	POSITION[place] ?? '',
+	transforms.length ? `transform:${transforms.join(' ')}` : '',
+]
+	.filter(Boolean)
+	.join(';');
+---
+
+<svg
+	class="mark"
+	data-place={place}
+	style={markStyle || undefined}
+	viewBox="0 0 112 100"
+	aria-hidden="true"
+>
+	<path class="mark-edge" pathLength="100" d="M56 12 L100 82 L12 82 Z" />
+	<path class="mark-flow" pathLength="100" d="M56 12 L100 82 L12 82 Z" />
+	<circle class="mark-node node-blue" cx="56" cy="12" r="9" />
+	<circle class="mark-node node-yellow" cx="12" cy="82" r="9" />
+	<circle class="mark-node node-red" cx="100" cy="82" r="9" />
+</svg>
