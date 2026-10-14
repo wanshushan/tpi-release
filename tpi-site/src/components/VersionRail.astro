@@ -1,6 +1,7 @@
 ---
 /**
- * 底栏：左边品牌名，右边版本号（可点，落到安装包）。
+ * 顶栏：左边品牌名，右边版本号（可点，落到安装包）。
+ * 视觉上在版面最上方（poster.css 的 .rail 是第一行），DOM 里也放在最前面。
  *
  * 版本号与下载地址同源取自分发服务的闸门文件 `/update/latest.json`，
  * 页面永远跟着最新版本走；拿不到就退回 GitHub 发布页，不显示假版本号。
@@ -9,7 +10,7 @@
  */
 
 interface Props {
-	/** 左下角品牌名 */
+	/** 左上角品牌名 */
 	brand?: string;
 	/** 元数据拿不到时的兜底跳转地址 */
 	fallback?: string;
@@ -34,7 +35,7 @@ const sizeVar = (name, value) =>
 const railStyle = sizeVar('--brand-size', brandSize) + sizeVar('--ver-size', versionSize);
 ---
 
-<footer class="rail" style={railStyle || undefined}>
+<header class="rail" style={railStyle || undefined}>
 	<p class="brand">{brand}</p>
 
 	<a class="ver" id="ver" href={fallback} rel="noopener">
@@ -42,7 +43,7 @@ const railStyle = sizeVar('--brand-size', brandSize) + sizeVar('--ver-size', ver
 		<span class="ver-arrow" aria-hidden="true">↓</span>
 		<span class="sr-only">下载最新版本</span>
 	</a>
-</footer>
+</header>
 
 <script>
 	const link = document.getElementById('ver');

@@ -38,14 +38,14 @@ src/pages/index.astro            壳：<head> 元信息 + 把 MDX 渲染进 <bod
 schema 在 `src/content.config.ts`），正文就是整张海报的版面：
 
 ```mdx
-<Poster>                                    ← 版面外壳（主区 + 底栏两层网格）
+<Poster>                                    ← 版面外壳（顶栏 + 主区两层网格）
+	<VersionRail brand="tutor_π" />            ← 顶栏：品牌名 + 版本号
 	<div class="bg"><ShapeWaves … /></div>   ← 背景：WebGPU 点阵波场（绝对定位，不吃网格行）
-	<Stage>                                   ← 主区：整屏里垂直居中的那一大块
+	<Stage>                                   ← 主区：吃掉剩余高度的那一大块
 		<Slogan lines={['辩论求真', '因材施教']} /> ← 口号，一行一条，几行都行
 		<Mark />                                ← 三角闭环标记
 		可以接着写 Markdown / 其它组件
 	</Stage>
-	<VersionRail brand="tutor_π" />            ← 底栏：品牌名 + 版本号
 </Poster>
 ```
 
@@ -204,7 +204,7 @@ const proxy = {
 ## 设计说明
 
 **版式**：口号是两行四字（`src/content/index/index.mdx` 里 `<Slogan lines={[...]} />` 的数组），
-尺度**故意压到标题级**（`min(9vw, 12.5vh)`，约占宽度 1/3）并靠下贴住底栏 —— 因为画面的主视觉
+尺度**故意压到标题级**（`min(9vw, 12.5vh)`，约占宽度 1/3）并靠下贴住版面底边 —— 因为画面的主视觉
 是背景里镂空的 `TPi`，口号不能再撞满整屏（旧版是 `min(21vw, 31vh)` 的 24rem 巨字）。
 改那两个数之前，先看一眼 1440×900 与 390×844 两个尺寸。
 

@@ -7,7 +7,7 @@
    跨文件的子元素根本选不中。这里全是版式规则，放全局最省心。
 
    版式约定（改之前先读）：
-   · .poster 是两行网格：.stage 吃掉剩余高度并垂直居中，.rail 贴底
+   · .poster 是两行网格：.rail 贴顶，.stage 吃掉剩余高度
    · .stage 是 .mark 的定位上下文 —— 宽屏那条例外构图靠它成立
    · .mark 用 order:-1 提到口号之前（DOM 里 h1 仍排第一，护住屏读顺序）
    ───────────────────────────────────────────────────────────── */
@@ -16,16 +16,20 @@
 	position: relative;
 	min-height: 100svh;
 	display: grid;
-	grid-template-rows: 1fr auto;
+	grid-template-rows: auto 1fr;
 	row-gap: clamp(20px, 5vh, 56px);
 	padding: var(--gut);
+	/* 顶栏那条线比四周的出血留白更靠上一些：只收紧上边距，其余三边仍是 --gut。
+	   想再高就继续减小这里，想回到和左右对齐就删掉这行。 */
+	padding-top: clamp(10px, 1.6vh, 20px);
 	overflow: hidden; /* 让几何体可以出血 */
 }
 
 .stage {
 	position: relative;
 	z-index: 1; /* 压在背景层之上 */
-	/* 靠下贴住底栏那条线，把画面中上部的镂空 TPi 让出来（参照 reactbits 首页的构图） */
+	/* 靠下贴住版面底边（顶栏移上去以后这里不改），把画面中上部的镂空 TPi 让出来
+	   （参照 reactbits 首页的构图） */
 	align-self: end;
 	min-width: 0;
 	display: flex;
@@ -144,7 +148,7 @@
 	animation: rise 0.86s var(--ease) backwards;
 }
 
-/* ── 底栏 ───────────────────────────────────────── */
+/* ── 顶栏 ───────────────────────────────────────── */
 .rail {
 	position: relative;
 	z-index: 1; /* 压在背景层之上 */
@@ -152,6 +156,7 @@
 	align-items: baseline;
 	justify-content: space-between;
 	gap: 16px;
+	/* 栏在顶部，分隔线画在最上面（朝上的那一侧） */
 	border-top: var(--rule) solid var(--ink);
 	padding-top: clamp(10px, 1.6vh, 18px);
 	animation: fade 0.7s var(--ease) 0.62s backwards;

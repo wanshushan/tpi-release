@@ -8,11 +8,11 @@ description: 辩论求真，因材施教。
   ────────────────── 首页正文 = 整张海报 ──────────────────
   下面用到的组件都在 src/components/ 里：
 
-    <Poster>       版面外壳（主区 + 底栏两层网格）
-    <Stage>        主区：整屏里垂直居中的那一大块
+    <Poster>       版面外壳（顶栏 + 主区两层网格）
+    <Stage>        主区：整屏里剩余高度的那一大块
     <Slogan>       口号，lines 一行一条，几行都行
     <Mark>         三角闭环标记：生成 → 交叉质疑 → 裁决
-    <VersionRail>  底栏：左边品牌名，右边版本号（JS 从 /update/latest.json 取）
+    <VersionRail>  顶栏：左边品牌名，右边版本号（JS 从 /update/latest.json 取）
 
   想加内容：在 <Stage> 里接着往下写 Markdown 或组件就行。
   改完先 `npm run fonts`（字体按页面上用到的字符切子集，不动文字可跳），
@@ -27,6 +27,14 @@ import VersionRail from '../../components/VersionRail.astro';
 import WaveBackground from '../../components/islands/WaveBackground.jsx';
 
 <Poster>
+	{/* 顶栏：左边品牌名，右边版本号。
+	    放在 DOM 最前面 —— 网格里它就是第一行，这样屏读顺序和视觉顺序一致。
+	    versionSize 是版本号的字号；brandSize 控制 tutor_π，不传就用 poster.css 里的默认值。 */}
+	<VersionRail
+		brand="tutor_π"
+		versionSize="clamp(0.95rem, 1.35vw, 1.2rem)"
+	/>
+
 	{/*
 	    背景：ShapeWaves（WebGPU 点阵波场，来自 React Bits），外面套了一层我们自己的
 	    WaveBackground —— 只在“镂空的字怎么画”上多给一个入口，其余参数全透传。
@@ -104,15 +112,8 @@ import WaveBackground from '../../components/islands/WaveBackground.jsx';
 	      rotate: 顺时针角度（度，可负） */}
 	<Mark
 		place="bottom-right"
-		offset="5vw 17vh"
+		offset="5vw 5vh"
 		size="clamp(84px, 11vw, 190px)"
 		rotate={0}
-	/>
-
-	{/* versionSize 是右下角版本号的字号，同理。brandSize 控制左下角 tutor_π，
-	    不传就用 poster.css 里的默认值。 */}
-	<VersionRail
-		brand="tutor_π"
-		versionSize="clamp(0.95rem, 1.35vw, 1.2rem)"
 	/>
 </Poster>
