@@ -17,7 +17,46 @@
 #   2. 产物先校验再发布。index.html 必须存在、必须是本站页面、字体必须在。
 #   3. 内容没变就不干活。commit 与上次相同 → 直接退出，不构建、不写盘。
 #
+# 配置只有一个来源：systemd 单元里的 Environment=TPI_SITE_*（见下面「0. 配置来源对齐」）。
+# 手跑本脚本时那些变量不会自己出现 —— 脚本会自己去单元文件里补，
+# 否则会退回内置默认值 /srv/tpi-site/www（在 1Panel 静态站场景下那是个没人服务的目录）。
+#
 set -euo pipefail
+
+# ── 0.0 配置来源对齐：手跑也必须和 systemd 单元一致 ────────────
+# 这台机器上 TPI_SITE_* 的唯一真相是 `/etc/systemd/system/tpi-site-deploy.service`
+# 里的 Environment= 行。而「手跑」这条路（install.sh 结尾的常用命令、运维文档都这么写：
+#   sudo -u <部署用户> /usr/local/bin/tpi-site-deploy.sh --force）
+# 拿不到那些变量 —— 脚本会退回内置默认值 TPI_SITE_WEB_ROOT=/srv/tpi-site/www。
+# 在 1Panel 场景下（Caddy → 127.0.0.1:4477 → /opt/1panel/www/sites/tpi/index）
+# 那个默认目录【没有任何人服务】：脚本一路绿勾、页面一个字节不变。
+# 2026-10-14 就是这么踩的：1Panel 任务的脚本内容写成了本脚本（而不是入口
+# /usr/local/bin/tpi-site-sync.sh），以 root 直跑 → 发到了 /srv/tpi-site/www。
+# 所以：凡是没有被显式设置的变量，一律从单元文件里补齐（显式设置的优先）。
+UNIT_FILE="${TPI_SITE_UNIT_FILE:-/etc/systemd/system/tpi-site-deploy.service}"
+ENV_NOTE=""
+if [ -r "$UNIT_FILE" ]; then
+	_inherited=""
+	while IFS= read -r _line; do
+		# 两种写法都收：Environment=TPI_SITE_X=v 与 Environment="TPI_SITE_X=v"
+		case "$_line" in Environment=TPI_SITE_*|Environment=\"TPI_SITE_*) ;; *) continue ;; esac
+		_kv="${_line#Environment=}"
+		# 容忍 Environment="TPI_SITE_X=..." 这种整体带引号的写法
+		_kv="${_kv#\"}"
+		_kv="${_kv%\"}"
+		_kv="${_kv%$'\r'}"
+		_key="${_kv%%=*}"
+		_value="${_kv#*=}"
+		case "$_key" in TPI_SITE_*) ;; *) continue ;; esac
+		if [ -n "${!_key:-}" ]; then continue; fi   # 显式给的优先，不覆盖
+		export "$_key=$_value"
+		_inherited="${_inherited:+$_inherited }${_key#TPI_SITE_}"
+	done < "$UNIT_FILE"
+	if [ -n "$_inherited" ]; then
+		ENV_NOTE="未显式设置的配置已从 $(basename "$UNIT_FILE") 补齐：$_inherited"
+	fi
+	unset _line _kv _key _value _inherited
+fi
 
 # ── 配置（都用环境变量覆盖）────────────────────────────────────
 REPO_URL="${TPI_SITE_REPO:-https://github.com/wanshushan/tpi-release.git}"
@@ -64,6 +103,7 @@ while [ $# -gt 0 ]; do
 			echo
 			echo "选项：--dry-run  --force（忽略 commit 未变）  -v"
 			echo "环境变量：TPI_SITE_{REPO,BRANCH,SRC_DIR,WEB_ROOT,PREV_DIR,SUBDIR,DIST_SUBDIR,MODE,NODE_IMAGE,STATE,KEEP_PREV,LOCK,GIT_TIMEOUT}"
+			echo "          没设的那些会从 systemd 单元（TPI_SITE_UNIT_FILE，默认 /etc/systemd/system/tpi-site-deploy.service）的 Environment= 里补齐"
 			exit 0
 			;;
 		*) die "未知参数：$1" ;;
@@ -89,7 +129,7 @@ case "$MODE" in pull|build) ;; *) die "TPI_SITE_MODE 只能是 pull 或 build（
 
 # ── 0.5 身份对齐：别让“运行用户 ≠ 仓库属主”把 git 卡死 ──────
 # 沙箱和运行用户本来都来自 systemd 单元（User= 部署用户）。但如果有人（或某个任务）
-# 直接 `sudo 本脚本`，就会以 root 跑 git，而仓库属于部署用户 → git 2.35+ 直接拒绘：
+# 直接 `sudo 本脚本`，就会以 root 跑 git，而仓库属于部署用户 → git 2.35+ 直接拒绝：
 #   fatal: detected dubious ownership in repository at '…'
 # 而且就算用 safe.directory 绕过读检查，还会把 state / lock / rsync 出的文件写成
 # root 属主，下一次以部署用户跑的自动任务又写不了 —— 属主混乱会连锁。
@@ -100,9 +140,25 @@ if [ "$(id -u)" -eq 0 ] && [ -d "$SRC_DIR" ]; then
 		info "以 root 运行、但 $SRC_DIR 属于 $SRC_OWNER → 降级为 $SRC_OWNER 重跑"
 		exec sudo -u "$SRC_OWNER" -- "$0" "$@"
 	fi
+	# 降级不了（仓库本身就是 root 属主）：本次能发出去，但产物、state、lock 都会是 root 属主，
+	# 下一次以部署用户跑的自动部署会在 git / 写 state 那一步炸（属主混乱连锁）。
+	warn "以 root 运行，且 $SRC_DIR 属于 root → 本次写出的文件都会是 root 属主"
+	warn "    修：sudo chown -R <单元 User= 那个用户> /srv/tpi-site"
 fi
 
 info "=========== tpi-site-deploy 开始（mode=$MODE）==========="
+if [ -n "$ENV_NOTE" ]; then info "$ENV_NOTE"; fi
+
+# ── 0.6 运行方式告警：不是 systemd 单元拉起的，就是「裸跑」────────
+# systemd 拉起服务时会设 INVOCATION_ID；没有它 = 手跑，或者 1Panel 任务的脚本
+# 内容里直接写了本脚本（应为 /usr/local/bin/tpi-site-sync.sh）。那条路没有沙箱，
+# 写出的文件属主 = 调用者 —— 以 root 跑会把下一次走单元的自动部署顶出
+# “dubious ownership” / permission denied。配置已在上边补齐，所以这里只是告警。
+if [ -z "${INVOCATION_ID:-}" ]; then
+	warn "不是 systemd 单元拉起的（无 INVOCATION_ID）→ 裸跑：没有沙箱，产物属主 = $(id -un)"
+	warn "    1Panel 计划任务的脚本内容应是：/usr/local/bin/tpi-site-sync.sh"
+	warn "    手跑建议：sudo systemctl start tpi-site-deploy.service（要带参数才直接跑本脚本）"
+fi
 
 # ── 1. 检出代码 ───────────────────────────────────────────────
 # 上游是 GitHub，而这台服务器到它是【间歇性】可达的：好的时候 0.45 秒返回 200，

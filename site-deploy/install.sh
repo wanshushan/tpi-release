@@ -77,6 +77,18 @@ echo "== 安装 tpi-site-deploy =="
 echo "   源目录    : ${SRC_DIR}"
 echo "   运行用户  : ${RUN_USER}"
 echo "   网站目录  : ${WEB_ROOT}"
+# 默认值 /srv/tpi-site/www 只有在「Caddy 直接把文件发出去」那套方案里才是对的。
+# 换成 1Panel 静态站后它就是个没人服务的目录：部署一路绿勾、页面一字节不变。
+# 安装时就把这句话说出来，别再让人从「页面怎么没变」查起。
+case "$WEB_ROOT" in
+	/srv/tpi-site/www)
+		echo >&2
+		echo "⚠️  网站目录用的是默认值 ${WEB_ROOT}。" >&2
+		echo "    如果页面由 1Panel 静态站服务（Caddy → 127.0.0.1:4477），这里必须是：" >&2
+		echo "       sudo bash $0 ${RUN_USER} --web-root /opt/1panel/www/sites/tpi/index" >&2
+		echo "    否则部署会发到一个没人服务的目录：脚本全绿、页面永远不变。" >&2
+		;;
+esac
 echo "   回滚备份  : ${PREV_DIR}"
 echo "   拉取源    : ${REPO:-（默认 github.com）}"
 echo "   部署模式  : ${MODE}"
@@ -192,6 +204,6 @@ echo "  sudo systemctl start ${UNIT}                      # 手动部署一次"
 echo "  journalctl -u tpi-site-deploy -n 50 -o cat --no-pager   # 看日志"
 echo "  tail -f /var/log/tpi/site-deploy.log                    # 全量日志"
 echo "  sudo /usr/local/bin/tpi-site-deploy.sh --dry-run -v     # 只演练不写盘"
-echo "  sudo /usr/local/bin/tpi-site-deploy.sh --force          # 忽略 commit 未变，强制重发"
+echo "  sudo /usr/local/bin/tpi-site-deploy.sh --force          # 强制重发（会自己从单元里补配置）"
 echo "  ls -la ${PREV_DIR}                                      # 上一版（回滚用）"
 echo

@@ -8,6 +8,10 @@
 # 验证过的工具，这里要验的是我们自己的逻辑：拉取 → 变更判定 → 产物校验 →
 # 发布 → 状态记录 → 失败不动线上）。
 #
+# 注意：部署脚本会「从 systemd 单元补齐没被显式设置的配置」，所以下面的用例
+# 都把 TPI_SITE_UNIT_FILE 指向一个不存在的路径 —— 否则开发机/服务器上真有一个
+# 单元时会把用例带偏。这条兜底本身由 J 单独验。
+#
 # 只依赖 git。在开发机和服务器上都能跑。
 # ============================================================
 set -uo pipefail
@@ -84,6 +88,7 @@ make_upstream() {
 
 deploy() {
 	env PATH="$STUB:$PATH" \
+		TPI_SITE_UNIT_FILE="$T/no-unit.service" \
 		TPI_SITE_REPO="file://$UPSTREAM" \
 		TPI_SITE_BRANCH=main \
 		TPI_SITE_SRC_DIR="$SRC" \
@@ -92,6 +97,22 @@ deploy() {
 		TPI_SITE_LOCK="$LOCK" \
 		TPI_SITE_MODE=pull \
 		bash "$DEPLOY" "$@" 2>&1
+}
+
+# 和 deploy() 一样，但故意【不】给 TPI_SITE_WEB_ROOT / PREV_DIR，改用一个假的
+# 单元文件 —— 验的是「手跑时从单元补齐配置」那条兜底（J）。
+# 额外传进来的 VAR=值 会当成 env 赋值（显式给的优先，不该被单元覆盖）。
+deploy_via_unit() {
+	env PATH="$STUB:$PATH" \
+		TPI_SITE_UNIT_FILE="$UNIT_FILE" \
+		TPI_SITE_REPO="file://$UPSTREAM" \
+		TPI_SITE_BRANCH=main \
+		TPI_SITE_SRC_DIR="$SRC" \
+		TPI_SITE_STATE="$STATE" \
+		TPI_SITE_LOCK="$LOCK" \
+		TPI_SITE_MODE=pull \
+		"$@" \
+		bash "$DEPLOY" --force 2>&1
 }
 
 echo "== A. 首次部署 =="
@@ -174,6 +195,34 @@ out="$(deploy --dry-run --force)"
 check "退出码 0"                      "[ $? -eq 0 ]"
 check "提示未写任何文件"              "grep -q '未写任何文件' <<< '$out'"
 check "线上未变"                      "[ \"\$(cat '$WEB/index.html')\" = \"\$before\" ]"
+
+echo
+echo "== J. 手跑：配置从 systemd 单元补齐（显式给的优先）=="
+make_upstream "unit-env"
+UNIT_WEB="$T/unit-www"
+UNIT_FILE="$T/unit.service"
+{
+	echo '[Service]'
+	echo "Environment=TPI_SITE_WEB_ROOT=$UNIT_WEB"
+	echo "Environment=TPI_SITE_PREV_DIR=$T/unit.prev"
+	echo 'Environment=TPI_SITE_MODE=pull'
+	echo "# Environment=TPI_SITE_WEB_ROOT=$T/should-be-ignored"
+} > "$UNIT_FILE"
+
+# J1：单元里有 WEB_ROOT，但显式给了另一个 → 显式优先（不能发到单元那个目录）
+EXPLICIT_WEB="$T/explicit-www"
+out="$(deploy_via_unit TPI_SITE_WEB_ROOT="$EXPLICIT_WEB")"
+check "显式给的优先：发到显式目录"      "[ -f '$EXPLICIT_WEB/index.html' ]"
+check "没有发到单元声明的目录"          "[ ! -e '$UNIT_WEB/index.html' ]"
+
+# J2：不显式给 → 从单元补齐（注释掉的 Environment 不算）
+mkdir -p "$UNIT_WEB"
+printf 'stale\n' > "$UNIT_WEB/index.html"      # 先把目录弄非空，让「保留上一版」那条分支也走到
+out="$(deploy_via_unit)"
+check "日志说明配置取自单元"            "grep -q '已从 unit.service 补齐' <<< '$out'"
+check "发布到单元声明的目录"            "[ -f '$UNIT_WEB/index.html' ] && [ \"\$(cat '$UNIT_WEB/index.html')\" != 'stale' ]"
+check "回滚备份也用单元里的设置"        "[ -d '$T/unit.prev' ]"
+check "裸跑会打告警"                    "grep -q '不是 systemd 单元拉起的' <<< '$out'"
 
 echo
 echo "────────────────────────────────────────"
